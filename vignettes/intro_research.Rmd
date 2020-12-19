@@ -1,0 +1,180 @@
+---
+title: "Research"
+author: "Hanyang Tian"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to Research}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+## Purity
+
+The function named **Purity** is used to cluster evaluation, to be precise, it is used to compare the similarity of two clustering results.
+
+There are $n$ nodes (can represent $n$ people) with similar characteristic, divided them into $K$ categories. And let the vector $g$ the corresponding category label named membership, $g=(g_1,g_2,...,g_n)$, and $g_i\in(1,..,K)$.
+
+For example, the real label for n=5 nodes, is $g=(1,1,2,3,3)$ with $K=3$. And our estimator $\hat{g}=(3,3,2,1,1)$. Although the two labels are different, their classification are the same.
+
+$$\text{Purity}(\Omega,C)=\frac{1}{n}\sum_k \max_j|W_k\cap C_j|$$
+For $k = 1,..., K$ define $C_j = \{1\leq i\leq n : g_i = j\}$, and for any other membership vector h define $W_k = \{1\leq j\leq  n : \hat{g}_j = k\}$
+
+```{r}
+Purity=function(f1,f2,K,n){
+  L1=list()
+  for (k in 1:K){
+    Ct=c()
+    L1=c(L1,list(Ct))}
+  
+  for (i in 1:n){L1[[f1[i]]]=c(L1[[f1[i]]],i)}
+  
+  L2=list()
+  for (k in 1:K){
+    Ct=c()
+    L2=c(L2,list(Ct))}
+  for (i in 1:n){L2[[f2[i]]]=c(L2[[f2[i]]],i)}
+  
+  Ehk=c()
+  for (k in 1:K){
+    Ekl=c()
+    for (l in 1:K){
+      e=intersect(L1[[l]],L2[[k]])
+      Ekl=c(Ekl,length(e))}
+    eo=sort(Ekl, decreasing = TRUE)
+    Ehk=c(Ehk,sum(eo[-1]))}
+  
+  succrate=1-sum(Ehk)/n
+  return(succrate)}
+
+g=c(1,1,1,2,2,2,3,3,3)
+l=c(2,2,1,1,1,3,2,2,3)
+Purity(g,l,K=3,n=6)
+```
+
+# Consistent community detection in multi-layer network data
+
+A multi-layer network can be represented by a tensor object $A\in R^{m\times n\times n}$, where each layer $A_{i..}(i = 1, . . . , m)$ represents a different aspect of the relationship between elements, and $A_{i..}$ can be an adjacency matrix, $A_{i}[k,j]\sim Ber(B_{g_kg_j})$, ($A_{i}[k,j]=1$ means **nodes k** and **nodes j** have a contact.
+
+$B\in R^{m\times K\times K}, B_{i..}\in[0,1]^K$, $B_i[s,l]$ represent the probability between the node in **community s** and the node in **community l** have a contact. 
+
+Let's say we have a sample $A\in R^{m\times n\times n}$, and fixed number of the communities is $K$. Our goal is to estimate the membership $g$ and the community relationship matrix $B$.
+
+## Generate Data
+
+We set a true $B,g$, and generate random samples $A$ based on them.
+
+If each time we generate $A_{i}[k,j]\sim Ber(B_{g_kg_j})$ by membership $g$, it's going to be slow. 
+
+To save time, the main idea is that generate matrix $Theta\in R^{n\times K}$ (by **Generate.theta**), and generate matrix $G_{i..}=Theta\times B_{i..}\times Theta'$, $G_i[k,j]$ represent the probability of links between the **node k** and **node j**.
+
+What's more, the adjacency matrix is a symmetric matrix, so only need to generate the upper triangular matrix by $G$ (by **Generate.data**).
+
+```{r}
+Generate.theta <- function(n, K, clust.size){
+theta <- matrix(0, n, K)
+for (k in 1:K){
+  if (k==1){id1 <-1} else {id1 <- sum(clust.size[1:(k-1)])+1}
+  id2 <- sum(clust.size[1:k])
+  theta[id1:id2, k] <- 1
+} 
+return(theta)
+}
+
+Generate.data <- function(Theta, Btensor, self = 0) {
+  # generates random adjacency matrix
+  p <- dim(Btensor)[1]
+  n <- dim(Theta)[1]
+  A <- array(0, dim = c(p, n,n))
+  for (i in 1:p){ 
+    P <- Theta%*%Btensor[i,,]%*%t(Theta)
+    lower.tri.ind <- lower.tri(P)
+    p.upper <- P[!lower.tri.ind]
+    A.upper <- rbinom(n*(n+1)/2, 1, p.upper)
+    A0 <- matrix(0, ncol = n, nrow = n)
+    A0[!lower.tri.ind] <- A.upper
+    tA0 = t(A0)
+    A0[lower.tri.ind]  <- tA0[lower.tri.ind]
+    if (self == 0){
+      diag(A0) <- 0
+    }
+    A[i,,] = A0
+  }
+  return(A)
+}
+
+n <- 200
+k <- 3 # number of communities
+m <- 3 # layers 
+
+Btensor <- array(0, dim = c(3, 3, 3)) # B tensor should be m*k*k
+
+Btensor[1, ,] <- matrix(c(0.6,0.4,0.4,0.4,0.2,0.2,0.4,0.2,0.2), 3, 3)
+Btensor[2, ,] <- matrix(c(0.2,0.4,0.2,0.4,0.6,0.4,0.2,0.4,0.2), 3, 3)
+Btensor[3, ,] <- matrix(c(0.2,0.2,0.4,0.2,0.2,0.4,0.4,0.4,0.6), 3, 3)
+       
+clust.size <- c(rep(floor(n/k), k-1),n-(k-1)*floor(n/k)) # equal cluster size
+Theta <- Generate.theta(n, k, clust.size)
+A <- Generate.data(Theta, Btensor, self = 0)
+
+```
+
+
+## Get the Distance
+
+*Algorithm for the estiamator*
+
+Step 1. Initialize by k-means on $n$ slices of the data, where the $j$th data point is a column slice $A_{··j}$, viewed as a vector of length $mn$. Then get the $B^{old}$.
+
+Step 2. Assume that the current iteration starts with a membership vector $g^{old}$. Find a new community vector $g^{new}$ where
+
+$$g_j^{new}=\arg \min_{k\in \{1,..,K\}} \sum^m_i w_i\sum_{l\neq j}\{A_{ijl}-B^{old}_{ikg^{old}_l}\}^2$$
+
+Step 3.
+
+Compute $B_{new}$:
+
+$$B^{new}_{ikk'}=\frac{\sum_{j\neq l}A_{ijl}1_{g^{new}_j=k}1_{g^{new}_l=k'}}{\sum_{j\neq l}1_{g^{new}_j=k}1_{g^{new}_l=k'}}$$
+Step 4. Compute the least squares loss function with respect to $g^{new}$ and $B^{new}$, and update with $g^{old} \leftarrow g^{new}$ and $B^{old} \leftarrow B^{new}$ if the loss function reduces.
+
+Step 5. Repeat Steps 2–4 until the objective function cannot be further reduced.
+
+The function **GetCenter** be used in Step 1. to get the initial $B^{old}$. And the **GetDist** help us to calculate the distance between $A_{ijl}$ and $B^{old}_{ikg^{old}_l}$.
+
+
+```{r}
+
+GetCenter <-function(A, idx, k){
+  m <- dim(A)[1]
+  m.1 <- dim(A)[2]
+  idx.1 <- idx[1:m.1]
+  center <- array(0, dim=c(m,k,k))
+  for (i in 1:k){
+    for (j in i:k){
+      if ((sum(idx.1 == i) ==1) & (sum(idx==j)==1) ) {
+        center[,i,j] <-0.5
+        center[,j,i] <- center[,i,j]
+      } else{
+        center[,i,j] <- apply(A[,idx.1==i,idx==j],1,mean)
+        center[,j,i] <- center[,i,j]
+      }
+    }
+  }
+  return(center)
+}
+
+
+GetDist <- function(A, center){
+  # A: m*n*n
+  # center: m*n*K
+  k <- dim(center)[3]
+  n <- dim(A)[3]
+  D <- matrix(0, n, k)
+  for (j in 1:n){
+    for (i in 1:k){
+      D[j,i] <- norm( (A[,,j] - center[,,i]), 'F')^2
+    }
+  }
+  return(D)
+}
+```

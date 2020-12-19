@@ -1,0 +1,16 @@
+Package: StatComp20025
+Type: Package
+Title: The final assignment for the Statistical Computing course
+Version: 1.0
+Date: 2020-12-15
+Author: Hanyang Tian
+Maintainer: Hanyang Tian<thy@mail.ustc.edu.cn>
+Description: Several R and Rcpp function which I used in my homework or research are included in this package for illustration. 
+License: GPL (>= 2)
+Imports: Rcpp (>= 1.0.5),microbenchmark, knitr, rmarkdown, boot, RANN, MASS, bootstrap, DAAG, energy, Ball, xtable
+LinkingTo: Rcpp
+Encoding: UTF-8
+VignetteBuilder: knitr
+RoxygenNote: 7.1.1
+URL: http://github.com/thynb/StatComp20025
+BugReports: http://github.com/thynb/StatComp20025/issues
